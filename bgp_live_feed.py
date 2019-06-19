@@ -2,16 +2,42 @@
 
 import json
 import websocket
+from argparse import ArgumentParser
 
-class main():
+class RISFeed():
+	
+	def main(self):
+		parser = ArgumentParser(description='Monitor global routing changes live using Atlas RIS probes')
+		parser.add_argument(
+			'-r', '--route-collector',
+			type=str,
+			default='rrc14',
+			help='Change route-collector to receive feed from, collectors can be found on www.ripe.net. Default - RRC14 (Palo Alto IX)'
+		)
+		parser.add_argument(
+			'-a', '--as-path',
+			type=str,
+			default=None,
+			help='Find route changes with specified ASN in AS Path. Regex can be used here. E.g. ^7575 would catch every update where the next hop AS is 7575, or 7575$ would catch all route changes originating from AS7575'
+		)
+		parser.add_argument(
+			'-t', '--change-type',
+			type=str,
+			default=None,
+			help='Filter route updates to only show announcements or withdrawals, e.g. -t announcements or -t withdrawals'
+		)
+		arguments = parser.parse_args()
 
-	feed_url = "wss://ris-live.ripe.net/v1/ws/"
-	params = {
-		"moreSpecific": True,
-		"type": "UPDATE",
-		"host": "rrc00"
-	}
-
+		self.feed_url = "wss://ris-live.ripe.net/v1/ws/"
+		self.params = {
+			"moreSpecific": True,
+			"type": "UPDATE",
+			"path": arguments.as_path,
+			"require": arguments.change_type,
+			"host": arguments.route_collector 
+		}
+		self.web_socket()
+		
 	def web_socket(self):
 		while True:
 			ris_feed = websocket.WebSocket()
@@ -24,8 +50,7 @@ class main():
 
 			for routing_update in ris_feed:
 				json_data = json.loads(routing_update)
-				routing_change = json_data["data"]
-
+				routing_change = json_data.get('data')
 				timestamp = routing_change['timestamp']
 				update_asn = 'AS{0}'.format(routing_change.get('peer_asn'))
 
@@ -57,5 +82,5 @@ class main():
 		print('Prefixes: {0}'.format(updated_prefixes))
 
 if __name__ == '__main__':
-	code = main()
-	code.web_socket()
+	bgp_feed = RISFeed()
+	bgp_feed.main()
